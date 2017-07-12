@@ -70,7 +70,7 @@ def release_tool(name, part="candidate", bump_deps=False):
             output = subprocess.check_output(['git', 'commit', '-s', '-S', '--amend', '--no-edit'])
 
         tag = repo.git_repo.create_tag(repo.new_version.tag, repo.git_repo.head.ref,
-                                       repo.release_msg, False)
+                                       repo.new_version.tag, False)
         branch = repo.git_repo.active_branch
         print branch.name
         repo.git_repo.remote("origin").push(branch.name)
