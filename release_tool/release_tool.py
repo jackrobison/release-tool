@@ -72,7 +72,6 @@ def release_tool(name, part="candidate", bump_deps=False):
         tag = repo.git_repo.create_tag(repo.new_version.tag, repo.git_repo.head.ref,
                                        repo.new_version.tag, False)
         branch = repo.git_repo.active_branch
-        print branch.name
         repo.git_repo.remote("origin").push(branch.name)
         repo.git_repo.remote("origin").push(tag)
         if not repo.is_rc:
