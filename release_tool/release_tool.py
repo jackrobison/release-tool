@@ -60,7 +60,7 @@ def release_tool(name, part="candidate", bump_deps=False):
         repo.git_repo.index.add([os.path.join(repo.directory, repo.module_name, '__init__.py'),
                                  os.path.join(repo.directory, 'setup.py')], force=True)
         if not repo.is_rc:
-            repo.git_repo.index.add([os.path.join(repo.directory, 'BUMPVERSION.md')], force=True)
+            repo.git_repo.index.add([os.path.join(repo.directory, 'CHANGELOG.md')], force=True)
         repo.git_repo.index.update()
         bump_msg = "Bump version %s --> %s" % (repo.current_version, repo.new_version)
         commit = repo.git_repo.index.commit(message=bump_msg)
