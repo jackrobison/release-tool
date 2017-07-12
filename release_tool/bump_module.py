@@ -90,10 +90,11 @@ class Version(object):
         self.candidate += 1
 
     def bump_release(self, major=None, minor=None, patch=None):
-        if self.is_candidate:
-            self.candidate = None
-        if not major and not minor and not patch:
+
+        if not major and not minor and not patch and self.is_release:
             patch = True
+        elif self.is_candidate:
+            self.candidate = None
 
         if major:
             self.major += 1
