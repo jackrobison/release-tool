@@ -6,12 +6,14 @@ LBRY = "lbrynet"
 LBRYUM = "lbryum"
 LBRYUM_SERVER = "lbryumserver"
 REPO_ROOT = "lbryio"
+RELEASE_TOOL = "release_tool"
 
 DIRECTORIES = {
     LBRYSCHEMA: os.path.expanduser("~/lbry-metadata"),
     LBRY: os.path.expanduser("~/lbry"),
     LBRYUM: os.path.expanduser("~/lbryum"),
-    LBRYUM_SERVER: os.path.expanduser("~/lbryum-server")
+    LBRYUM_SERVER: os.path.expanduser("~/lbryum-server"),
+    RELEASE_TOOL: os.path.expanduser("~/release-tool")
 }
 
 REPOS = {
@@ -19,6 +21,7 @@ REPOS = {
     LBRY: "%s/lbry" % REPO_ROOT,
     LBRYUM: "%s/lbryum" % REPO_ROOT,
     LBRYUM_SERVER: "%s/lbryum-server" % REPO_ROOT,
+    RELEASE_TOOL: "jackrobison/release-tool"
 }
 
 # a reverse version of the dict above

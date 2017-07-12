@@ -10,7 +10,7 @@ def release_tool(name, part="candidate", bump_deps=False):
     touched = stack.files_touched
     repos = stack.repos_touched
     repo_names = []
-    for r in ['lbryschema', 'lbryum', 'lbryumserver', 'lbrynet']:
+    for r in ['release_tool', 'lbryschema', 'lbryum', 'lbryumserver', 'lbrynet']:
         if r in repos:
             repo_names.append(r)
 
@@ -71,11 +71,13 @@ def release_tool(name, part="candidate", bump_deps=False):
 
         tag = repo.git_repo.create_tag(repo.new_version.tag, repo.git_repo.head.ref,
                                        repo.release_msg, False)
-
-        repo.git_repo.remote("origin").push("master")
+        branch = repo.git_repo.active_branch
+        print branch.name
+        repo.git_repo.remote("origin").push(branch.name)
         repo.git_repo.remote("origin").push(tag)
-        repo.git_repo_v3.create_git_release(repo.new_version.tag, repo.new_version.tag,
-                                            repo.release_msg, draft=True, prerelease=repo.is_rc)
+        if not repo.is_rc:
+            repo.git_repo_v3.create_git_release(repo.new_version.tag, repo.new_version.tag,
+                                                repo.release_msg, draft=True, prerelease=repo.is_rc)
 
         print u"commit %s (%s)" % (colored(repo.module_name, "green"), tag.commit)
 

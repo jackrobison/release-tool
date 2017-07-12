@@ -432,10 +432,12 @@ lbryschema_repo = BumpGitModule("lbryschema")
 lbrynet_repo = BumpGitModule("lbrynet")
 lbryum_repo = BumpGitModule("lbryum")
 lbryum_server_repo = BumpGitModule("lbryumserver")
+release_tool_repo = BumpGitModule("release_tool")
 
 GITHUB_REPOS = {
     "lbrynet": lbrynet_repo,
     "lbryum": lbryum_repo,
     "lbryumserver": lbryum_server_repo,
     "lbryschema": lbryschema_repo,
+    "release_tool": release_tool_repo
 }
