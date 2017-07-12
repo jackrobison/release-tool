@@ -1,0 +1,34 @@
+lbryschema:
+  modulename: lbryschema
+  path: ~/lbry-metadata
+  ref: lbryio/lbryschema
+  remote: origin
+  branch: master
+
+lbryum:
+  modulename: lbryum
+  path: ~/lbryum
+  ref: lbryio/lbryum
+  remote: origin
+  branch: master
+  depends-on:
+    - lbryschema
+
+lbryum-server:
+  modulename: lbryumserver
+  path: ~/lbryum-server
+  ref: lbryio/lbryum-server
+  remote: origin
+  branch: master
+  depends-on:
+    - lbryschema
+
+lbry:
+  modulename: lbrynet
+  path: ~/lbry
+  ref: lbryio/lbry
+  remote: origin
+  branch: master
+  depends-on:
+    - lbryschema
+    - lbryum
