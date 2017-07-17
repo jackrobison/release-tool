@@ -1,6 +1,9 @@
+# -*- coding: utf-8 -*-
+
 import os
 import sys
 import subprocess
+import argparse
 from termcolor import colored
 from bump_module import GITHUB_REPOS, get_update_ops, pushd
 
@@ -13,7 +16,6 @@ def release_tool(name, part="candidate", bump_deps=False):
     for r in ['release_tool', 'lbryschema', 'lbryum', 'lbryumserver', 'lbrynet']:
         if r in repos:
             repo_names.append(r)
-
     print "%i operations, %i files touched, %i repos touched" % (len(stack), len(touched),
                                                                  len(repos))
     for f in touched:
@@ -58,7 +60,8 @@ def release_tool(name, part="candidate", bump_deps=False):
     for repo_name in repo_names:
         repo = GITHUB_REPOS[repo_name]
         repo.git_repo.index.add([os.path.join(repo.directory, repo.module_name, '__init__.py'),
-                                 os.path.join(repo.directory, 'setup.py')], force=True)
+                                 os.path.join(repo.directory, 'setup.py'),
+                                 os.path.join(repo.directory, 'requirements.txt')], force=True)
         if not repo.is_rc:
             repo.git_repo.index.add([os.path.join(repo.directory, 'CHANGELOG.md')], force=True)
         repo.git_repo.index.update()
@@ -74,26 +77,32 @@ def release_tool(name, part="candidate", bump_deps=False):
         branch = repo.git_repo.active_branch
         repo.git_repo.remote("origin").push(branch.name)
         repo.git_repo.remote("origin").push(tag)
-        if not repo.is_rc:
-            repo.git_repo_v3.create_git_release(repo.new_version.tag, repo.new_version.tag,
-                                                repo.release_msg, draft=True, prerelease=repo.is_rc)
+        repo.git_repo_v3.create_git_release(repo.new_version.tag, repo.new_version.tag,
+                                            repo.release_msg, draft=True, prerelease=repo.is_rc)
 
         print u"commit %s (%s)" % (colored(repo.module_name, "green"), tag.commit)
 
     if released:
-        print colored(u"shipped release", 'green') + u" \U0001F6F3"
+        print colored(u"shipped release", 'green') + u"🚀"
     else:
-        print colored(u"shipped candidate", 'green') + u" \U0001F69A"
+        print colored(u"shipped candidate", 'green') + u"🚚"
 
 
 def exit():
-    print u"don't ship it! \u2708 \U0001F3E2"
+    print u"don't ship it! 🚚🚓"
     sys.exit()
 
 
 def main():
-    args = sys.argv[1:]
-    release_tool(*args)
+    parser = argparse.ArgumentParser()
+    parser.add_argument("name", type=str, help="python module name")
+    parser.add_argument("part", default="candidate", type=str,
+                        help="major/minor/patch or candidate/release")
+    parser.add_argument("-d", "--deps", default=False, action="store_true", help="bump dependencies")
+
+    args = parser.parse_args()
+    name, part, bump_deps = args.name, args.part, args.deps
+    release_tool(name, part, bump_deps)
 
 
 if __name__ == "__main__":

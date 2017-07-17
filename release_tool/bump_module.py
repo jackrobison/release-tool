@@ -382,11 +382,6 @@ def get_update_ops(name, part, bump_deps=False):
     repo = GITHUB_REPOS[name]
     repo.new_version = Version.parse(repr(repo.current_version))
 
-    if bump_deps == "-d":
-        bump_deps = True
-    else:
-        bump_deps = False
-
     bump = {}
     if part == "release":
         is_release = True
