@@ -59,9 +59,11 @@ def release_tool(name, part="candidate", bump_deps=False):
 
     for repo_name in repo_names:
         repo = GITHUB_REPOS[repo_name]
-        repo.git_repo.index.add([os.path.join(repo.directory, repo.module_name, '__init__.py'),
+        repo.git_repo.index.add([path for path in [os.path.join(repo.directory, repo.module_name,
+                                                                '__init__.py'),
                                  os.path.join(repo.directory, 'setup.py'),
-                                 os.path.join(repo.directory, 'requirements.txt')], force=True)
+                                 os.path.join(repo.directory, 'requirements.txt')]
+                                 if os.path.isfile(path)], force=True)
         if not repo.is_rc:
             repo.git_repo.index.add([os.path.join(repo.directory, 'CHANGELOG.md')], force=True)
         repo.git_repo.index.update()
