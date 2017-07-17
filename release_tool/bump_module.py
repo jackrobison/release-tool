@@ -156,7 +156,7 @@ class BumpGitModule(object):
 
     @property
     def release_msg(self):
-        return self.get_release_message() if self.new_version.is_release else ''
+        return self.get_release_message()
 
     @property
     def is_rc(self):
