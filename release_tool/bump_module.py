@@ -3,11 +3,14 @@ import github
 import os
 import sys
 import contextlib
+import datetime
 from termcolor import colored
-from conf import BUMP_SEQUENCE
 
 import changelog
-from conf import DIRECTORIES, REPOS
+from conf import get_settings
+
+SETTINGS = get_settings()
+MODULES = {v['module']: k for k, v in SETTINGS.iteritems()}
 
 
 def get_gh_token():
@@ -109,15 +112,16 @@ class Version(object):
 
 
 class BumpGitModule(object):
-    def __init__(self, module_name):
-        self.module_name = module_name
-        self.directory = DIRECTORIES[self.module_name]
+    def __init__(self, repo_name):
+        self.repo_name = repo_name
+        self.module_name = SETTINGS[self.repo_name]['module']
+        self.directory = SETTINGS[self.repo_name]['path']
         self.git_repo = git.Repo(self.directory)
         active_branch = self.git_repo.active_branch
         is_dirty = self.git_repo.is_dirty()
         self.current_version = self._get_current_version()
 
-        msg = u"%s" % module_name
+        msg = u"%s" % self.module_name
         if active_branch != "master":
             msg += colored(u" (%s)" % active_branch, 'blue')
         else:
@@ -129,7 +133,8 @@ class BumpGitModule(object):
 
         gh_token = get_gh_token()
         auth = github.Github(gh_token)
-        self.git_repo_v3 = auth.get_repo(REPOS[module_name])
+        self.git_repo_v3 = auth.get_repo("%s/%s" % (SETTINGS[self.repo_name]['remote'],
+                                                    self.repo_name))
         self.new_version = None
         changelog_path = os.path.join(self.directory, 'CHANGELOG.md')
         self._changelog = changelog.Changelog(self.module_name, changelog_path)
@@ -166,6 +171,9 @@ class BumpGitModule(object):
         path = os.path.join(self.directory, self.module_name, "__init__.py")
         _locals = self._exec_file(path, self.directory)
         module_version = _locals.get("__version__")
+        if not module_version:
+            raise Exception("Repository %s (%s) does not have a __version__ configured "
+                            "in __init__.py" % (self.repo_name, self.module_name))
         return Version.parse(module_version)
 
     def update_init(self):
@@ -189,7 +197,7 @@ class BumpGitModule(object):
         path = os.path.join(self.directory, "setup.py")
         _locals = self._exec_file(path, self.directory)
         requires = {req.split("==")[0]: req.split("==")[1] for req in _locals.get("requires")
-                    if req.split("==")[0] in REPOS}
+                    if req.split("==")[0] in MODULES}
         return requires
 
     def update_setup(self, module_name, new_version):
@@ -230,8 +238,10 @@ class BumpGitModule(object):
             requirements_file.write(updated_requirements_contents)
 
     def get_pip_link(self, module_name, version):
-        repo_path = REPOS[module_name]
-        return "git+https://github.com/%s.git@v%s#egg=%s" % (repo_path, version, module_name)
+        repo_name = MODULES[module_name]
+        remote = SETTINGS[repo_name]['remote']
+        return "git+https://github.com/%s/%s.git@v%s#egg=%s" % (remote, repo_name,
+                                                                version, module_name)
 
     def get_release_message(self):
         return self._changelog.get_release_message(self.new_version)
@@ -306,80 +316,100 @@ class Stack(object):
         return list(repos)
 
     @property
+    def repo_sequence(self):
+        result = []
+        for item in self._stack:
+            if item.repo and item.repo not in result:
+                result.append(item.repo)
+        return result
+
+    @property
     def total_operations(self):
         return len(self._stack)
 
 
 def bump_recurse(module_name, is_release, stack, bumped):
-    _repo = GITHUB_REPOS[module_name]
-    if _repo.module_name in BUMP_SEQUENCE:
-        for to_bump in BUMP_SEQUENCE[module_name]:
-            req = GITHUB_REPOS[to_bump].get_module_requires().get(module_name)
-            if req != _repo.current_version:
-                if is_release:
-                    GITHUB_REPOS[to_bump].new_version = Version.parse(
-                        repr(GITHUB_REPOS[to_bump].current_version))
-                    GITHUB_REPOS[to_bump].new_version.bump_release()
+    _repo = GITHUB_REPOS[MODULES[module_name]]
+    depends_on = [repo_settings['module'] for repo_name, repo_settings in SETTINGS.iteritems()
+                  if module_name in repo_settings.get('depends on', [])]
+    for to_bump in depends_on:
+        req = GITHUB_REPOS[MODULES[to_bump]].get_module_requires().get(module_name)
+        if req != _repo.current_version:
+            if is_release:
+                GITHUB_REPOS[MODULES[to_bump]].new_version = Version.parse(
+                    repr(GITHUB_REPOS[MODULES[to_bump]].current_version))
+                GITHUB_REPOS[MODULES[to_bump]].new_version.bump_release()
+            else:
+                GITHUB_REPOS[MODULES[to_bump]].new_version = Version.parse(
+                    repr(GITHUB_REPOS[MODULES[to_bump]].current_version))
+                GITHUB_REPOS[MODULES[to_bump]].new_version.bump_candidate()
+
+                GITHUB_REPOS[MODULES[to_bump]].assert_new_tag_is_absent()
+
+            print "bump %s from %s-->%s" % (GITHUB_REPOS[MODULES[to_bump]].module_name,
+                                            colored(GITHUB_REPOS[MODULES[to_bump]].current_version,
+                                                    attrs=['bold']),
+                                            colored(GITHUB_REPOS[MODULES[to_bump]].new_version,
+                                                    attrs=['bold']))
+
+            stack.add(UpdateOp(os.path.join(GITHUB_REPOS[MODULES[to_bump]].directory,
+                                            GITHUB_REPOS[MODULES[to_bump]].module_name,
+                                            "__init__.py"), to_bump,
+                                GITHUB_REPOS[MODULES[to_bump]].update_init))
+            stack.add(UpdateOp(os.path.join(GITHUB_REPOS[MODULES[to_bump]].directory,
+                                            "setup.py"), to_bump,
+                                GITHUB_REPOS[MODULES[to_bump]].update_setup, _repo.module_name,
+                                _repo.new_version))
+            stack.add(UpdateOp(os.path.join(GITHUB_REPOS[MODULES[to_bump]].directory,
+                                            "requirements.txt"), to_bump,
+                                GITHUB_REPOS[MODULES[to_bump]].update_requires, _repo.module_name,
+                                _repo.new_version))
+            if GITHUB_REPOS[MODULES[to_bump]].new_version.is_release:
+                pos = None
+                for i, l in enumerate(GITHUB_REPOS[MODULES[to_bump]]._changelog.unreleased):
+                    if l.startswith("  * Bumped `%s`" % bumped):
+                        print "Updating changelog version bump (%i)" % i
+                        pos = i
+                        break
+
+                skip_to = repr(GITHUB_REPOS[MODULES[bumped]].new_version)
+                skip_to = skip_to.replace(".", "")
+                today = datetime.datetime.today().strftime('%Y-%m-%d')
+                changelog_link = "https://github.com/%s/%s/blob/master/CHANGELOG.md#%s---%s" % (MODULES[bumped],
+                                                                                   bumped,
+                                                                                   skip_to,
+                                                                                   today)
+                msg = " * Bumped `%s` requirement to %s [see changelog](%s)"
+                msg %= (bumped, GITHUB_REPOS[MODULES[bumped]].new_version, changelog_link)
+                if pos is not None:
+                    GITHUB_REPOS[MODULES[to_bump]]._changelog.unreleased[pos] = msg
                 else:
-                    GITHUB_REPOS[to_bump].new_version = Version.parse(
-                        repr(GITHUB_REPOS[to_bump].current_version))
-                    GITHUB_REPOS[to_bump].new_version.bump_candidate()
-
-                    GITHUB_REPOS[to_bump].assert_new_tag_is_absent()
-
-                print "bump %s from %s-->%s" % (GITHUB_REPOS[to_bump].module_name,
-                                                colored(GITHUB_REPOS[to_bump].current_version,
-                                                        attrs=['bold']),
-                                                colored(GITHUB_REPOS[to_bump].new_version,
-                                                        attrs=['bold']))
-
-                stack.add(UpdateOp(os.path.join(GITHUB_REPOS[to_bump].directory,
-                                                GITHUB_REPOS[to_bump].module_name,
-                                                "__init__.py"), to_bump,
-                                   GITHUB_REPOS[to_bump].update_init))
-                stack.add(UpdateOp(os.path.join(GITHUB_REPOS[to_bump].directory,
-                                                "setup.py"), to_bump,
-                                   GITHUB_REPOS[to_bump].update_setup, _repo.module_name,
-                                   _repo.new_version))
-                stack.add(UpdateOp(os.path.join(GITHUB_REPOS[to_bump].directory,
-                                                "requirements.txt"), to_bump,
-                                   GITHUB_REPOS[to_bump].update_requires, _repo.module_name,
-                                   _repo.new_version))
-                if GITHUB_REPOS[to_bump].new_version.is_release:
-                    pos = None
-                    for i, l in enumerate(GITHUB_REPOS[to_bump]._changelog.unreleased):
-                        if l.startswith("  * Bumped `%s`" % bumped):
-                            pos = i
-                            break
-                    msg = "  * Bumped `%s` requirement to %s\n" % (bumped,
-                                                                   GITHUB_REPOS[bumped].new_version)
-                    if pos is not None:
-                        GITHUB_REPOS[to_bump]._changelog.unreleased[pos] = msg
+                    if "### Changed" not in GITHUB_REPOS[MODULES[to_bump]]._changelog.unreleased:
+                        GITHUB_REPOS[MODULES[to_bump]]._changelog.unreleased.append("### Changed")
+                        GITHUB_REPOS[MODULES[to_bump]]._changelog.unreleased.append(msg)
                     else:
-                        if "### Changed" not in GITHUB_REPOS[to_bump]._changelog.unreleased:
-                            GITHUB_REPOS[to_bump]._changelog.unreleased.append("### Changed")
-                            GITHUB_REPOS[to_bump]._changelog.unreleased.append(msg)
-                        else:
-                            for i, l in enumerate(GITHUB_REPOS[to_bump]._changelog.unreleased):
-                                if l.startswith("### Changed"):
-                                    pos = i
-                                    break
-                            unreleased = GITHUB_REPOS[to_bump]._changelog.unreleased[:pos] + [
-                                msg] + GITHUB_REPOS[to_bump]._changelog.unreleased[pos:]
-                            GITHUB_REPOS[to_bump]._changelog.unreleased = unreleased
+                        for i, l in enumerate(GITHUB_REPOS[MODULES[to_bump]]._changelog.unreleased):
+                            if l == "### Changed":
+                                pos = i + 1
+                                break
 
-                    stack.add(UpdateOp(os.path.join(GITHUB_REPOS[to_bump].directory,
-                                                    'CHANGELOG.md'), to_bump,
-                                       GITHUB_REPOS[to_bump].bump_changelog))
+                        unreleased = GITHUB_REPOS[MODULES[to_bump]]._changelog.unreleased[:pos]
+                        unreleased += [msg]
+                        unreleased += GITHUB_REPOS[MODULES[to_bump]]._changelog.unreleased[pos:]
+                        GITHUB_REPOS[MODULES[to_bump]]._changelog.unreleased = unreleased
 
-                if to_bump in BUMP_SEQUENCE:
-                    stack = bump_recurse(to_bump, is_release, stack, to_bump)
+                stack.add(UpdateOp(os.path.join(GITHUB_REPOS[MODULES[to_bump]].directory,
+                                                'CHANGELOG.md'), to_bump,
+                                    GITHUB_REPOS[MODULES[to_bump]].bump_changelog))
+
+            if SETTINGS[MODULES[to_bump]].get('depends on'):
+                stack = bump_recurse(to_bump, is_release, stack, to_bump)
     return stack
 
 
 def get_update_ops(name, part, bump_deps=False):
     stack = Stack()
-    repo = GITHUB_REPOS[name]
+    repo = GITHUB_REPOS[MODULES[name]]
     repo.new_version = Version.parse(repr(repo.current_version))
 
     bump = {}
@@ -411,7 +441,7 @@ def get_update_ops(name, part, bump_deps=False):
                        repo.update_init))
 
     if bump_deps:
-        stack = bump_recurse(repo.module_name, is_release, stack, name)
+        stack = bump_recurse(repo.module_name, is_release, stack, repo.module_name)
 
     return stack
 
@@ -424,16 +454,7 @@ def pushd(new_dir):
     os.chdir(previous_dir)
 
 
-lbryschema_repo = BumpGitModule("lbryschema")
-lbrynet_repo = BumpGitModule("lbrynet")
-lbryum_repo = BumpGitModule("lbryum")
-lbryum_server_repo = BumpGitModule("lbryumserver")
-release_tool_repo = BumpGitModule("release_tool")
+GITHUB_REPOS = {}
 
-GITHUB_REPOS = {
-    "lbrynet": lbrynet_repo,
-    "lbryum": lbryum_repo,
-    "lbryumserver": lbryum_server_repo,
-    "lbryschema": lbryschema_repo,
-    "release_tool": release_tool_repo
-}
+for repo_name, repo_settings in SETTINGS.iteritems():
+    GITHUB_REPOS[repo_name] = BumpGitModule(repo_name)

@@ -1,34 +1,30 @@
 lbryschema:
-  modulename: lbryschema
-  path: ~/lbry-metadata
-  ref: lbryio/lbryschema
-  remote: origin
+  path: ~/code/lbry/daemon stack/lbryschema
+  remote: lbryio
   branch: master
 
 lbryum:
-  modulename: lbryum
-  path: ~/lbryum
-  ref: lbryio/lbryum
-  remote: origin
-  branch: master
-  depends-on:
+  path: ~/code/lbry/daemon stack/lbryum
+  remote: lbryio
+  depends on:
     - lbryschema
 
 lbryum-server:
-  modulename: lbryumserver
-  path: ~/lbryum-server
-  ref: lbryio/lbryum-server
-  remote: origin
-  branch: master
-  depends-on:
+  module: lbryumserver
+  path: ~/code/lbry/infrastructure/lbryum-server
+  remote: lbryio
+  depends on:
     - lbryschema
 
 lbry:
-  modulename: lbrynet
-  path: ~/lbry
-  ref: lbryio/lbry
-  remote: origin
-  branch: master
-  depends-on:
+  module: lbrynet
+  path: ~/code/lbry/daemon stack/lbry
+  remote: lbryio
+  depends on:
     - lbryschema
     - lbryum
+
+reflector-cluster:
+  module: prism
+  path: ~/code/lbry/infrastructure/reflector-cluster
+  remote: lbryio

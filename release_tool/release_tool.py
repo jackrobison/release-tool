@@ -5,17 +5,13 @@ import sys
 import subprocess
 import argparse
 from termcolor import colored
-from bump_module import GITHUB_REPOS, get_update_ops, pushd
+from bump_module import GITHUB_REPOS, MODULES, get_update_ops, pushd
 
 
 def release_tool(name, part="candidate", bump_deps=False):
     stack = get_update_ops(name, part, bump_deps)
     touched = stack.files_touched
     repos = stack.repos_touched
-    repo_names = []
-    for r in ['release_tool', 'lbryschema', 'lbryum', 'lbryumserver', 'lbrynet']:
-        if r in repos:
-            repo_names.append(r)
     print "%i operations, %i files touched, %i repos touched" % (len(stack), len(touched),
                                                                  len(repos))
     for f in touched:
@@ -24,8 +20,10 @@ def release_tool(name, part="candidate", bump_deps=False):
     print ""
     released = False
 
-    for repo_name in repo_names:
-        repo = GITHUB_REPOS[repo_name]
+    bump_sequence = stack.repo_sequence
+
+    for repo_name in bump_sequence:
+        repo = GITHUB_REPOS[MODULES[repo_name]]
         git_repo = repo.git_repo_v3
         print u"push %s --> %s" % (colored(repo.new_version.tag, "blue"), git_repo.git_url)
         if not repo.is_rc:
@@ -57,8 +55,8 @@ def release_tool(name, part="candidate", bump_deps=False):
     for op in iter(stack):
         pass
 
-    for repo_name in repo_names:
-        repo = GITHUB_REPOS[repo_name]
+    for repo_name in bump_sequence:
+        repo = GITHUB_REPOS[MODULES[repo_name]]
         repo.git_repo.index.add([path for path in [os.path.join(repo.directory, repo.module_name,
                                                                 '__init__.py'),
                                  os.path.join(repo.directory, 'setup.py'),
@@ -68,8 +66,7 @@ def release_tool(name, part="candidate", bump_deps=False):
             repo.git_repo.index.add([os.path.join(repo.directory, 'CHANGELOG.md')], force=True)
         repo.git_repo.index.update()
         bump_msg = "Bump version %s --> %s" % (repo.current_version, repo.new_version)
-        commit = repo.git_repo.index.commit(message=bump_msg)
-        repo.git_repo.commit(commit)
+        commit = repo.git_repo.commit(repo.git_repo.index.commit(message=bump_msg))
 
         with pushd(repo.directory):
             output = subprocess.check_output(['git', 'commit', '-s', '-S', '--amend', '--no-edit'])
@@ -82,7 +79,7 @@ def release_tool(name, part="candidate", bump_deps=False):
         repo.git_repo_v3.create_git_release(repo.new_version.tag, repo.new_version.tag,
                                             repo.release_msg, draft=True, prerelease=repo.is_rc)
 
-        print u"commit %s (%s)" % (colored(repo.module_name, "green"), tag.commit)
+        print u"commit %s (%s)" % (colored(repo.module_name, "green"), commit)
 
     if released:
         print colored(u"shipped release", 'green') + u"🚀"
