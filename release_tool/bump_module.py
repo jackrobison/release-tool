@@ -364,40 +364,45 @@ def bump_recurse(module_name, is_release, stack, bumped):
                                             "requirements.txt"), to_bump,
                                 GITHUB_REPOS[MODULES[to_bump]].update_requires, _repo.module_name,
                                 _repo.new_version))
-            if GITHUB_REPOS[MODULES[to_bump]].new_version.is_release:
-                pos = None
-                for i, l in enumerate(GITHUB_REPOS[MODULES[to_bump]]._changelog.unreleased):
-                    if l.startswith("  * Bumped `%s`" % bumped):
-                        print "Updating changelog version bump (%i)" % i
-                        pos = i
-                        break
 
+
+            pos = None
+            for i, l in enumerate(GITHUB_REPOS[MODULES[to_bump]]._changelog.unreleased):
+                if l.startswith("  * Bumped `%s`" % bumped):
+                    print "Updating changelog version bump (%i)" % i
+                    pos = i
+                    break
+
+            if GITHUB_REPOS[MODULES[bumped]].new_version.is_release:
                 skip_to = repr(GITHUB_REPOS[MODULES[bumped]].new_version)
                 skip_to = skip_to.replace(".", "")
-                today = datetime.datetime.today().strftime('%Y-%m-%d')
-                changelog_link = "https://github.com/%s/%s/blob/master/CHANGELOG.md#%s---%s" % (MODULES[bumped],
-                                                                                   bumped,
-                                                                                   skip_to,
-                                                                                   today)
-                msg = " * Bumped `%s` requirement to %s [see changelog](%s)"
-                msg %= (bumped, GITHUB_REPOS[MODULES[bumped]].new_version, changelog_link)
-                if pos is not None:
-                    GITHUB_REPOS[MODULES[to_bump]]._changelog.unreleased[pos] = msg
+                skip_to = "%s---%s" % (skip_to, datetime.datetime.today().strftime('%Y-%m-%d'))
+            else:
+                skip_to = "unreleased"
+
+            changelog_link = "https://github.com/lbryio/%s/blob/master/CHANGELOG.md#%s" % (bumped,
+                                                                                           skip_to)
+            msg = " * Bumped `%s` requirement to %s [see changelog](%s)"
+            msg %= (bumped, GITHUB_REPOS[MODULES[bumped]].new_version, changelog_link)
+            if pos is not None:
+                GITHUB_REPOS[MODULES[to_bump]]._changelog.unreleased[pos] = msg
+            else:
+                if "### Changed" not in GITHUB_REPOS[MODULES[to_bump]]._changelog.unreleased:
+                    GITHUB_REPOS[MODULES[to_bump]]._changelog.unreleased.append("### Changed")
+                    GITHUB_REPOS[MODULES[to_bump]]._changelog.unreleased.append(msg)
                 else:
-                    if "### Changed" not in GITHUB_REPOS[MODULES[to_bump]]._changelog.unreleased:
-                        GITHUB_REPOS[MODULES[to_bump]]._changelog.unreleased.append("### Changed")
-                        GITHUB_REPOS[MODULES[to_bump]]._changelog.unreleased.append(msg)
-                    else:
-                        for i, l in enumerate(GITHUB_REPOS[MODULES[to_bump]]._changelog.unreleased):
-                            if l == "### Changed":
-                                pos = i + 1
-                                break
+                    for i, l in enumerate(GITHUB_REPOS[MODULES[to_bump]]._changelog.unreleased):
+                        if l == "### Changed":
+                            pos = i + 1
+                            break
 
-                        unreleased = GITHUB_REPOS[MODULES[to_bump]]._changelog.unreleased[:pos]
-                        unreleased += [msg]
-                        unreleased += GITHUB_REPOS[MODULES[to_bump]]._changelog.unreleased[pos:]
-                        GITHUB_REPOS[MODULES[to_bump]]._changelog.unreleased = unreleased
+                    unreleased = GITHUB_REPOS[MODULES[to_bump]]._changelog.unreleased[:pos]
+                    unreleased += [msg]
+                    unreleased += GITHUB_REPOS[MODULES[to_bump]]._changelog.unreleased[pos:]
+                    GITHUB_REPOS[MODULES[to_bump]]._changelog.unreleased = unreleased
 
+            if GITHUB_REPOS[MODULES[to_bump]].new_version.is_release:
+                # only update the changelog file for a release
                 stack.add(UpdateOp(os.path.join(GITHUB_REPOS[MODULES[to_bump]].directory,
                                                 'CHANGELOG.md'), to_bump,
                                     GITHUB_REPOS[MODULES[to_bump]].bump_changelog))
