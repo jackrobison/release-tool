@@ -20,7 +20,7 @@ labeled as 2.7.1. Subsequent releases will follow
   *
 
 ### Changed
-  *
+  * Updated default config file, added lbrynet dependency to reflector-cluster
   *
 
 ### Added
