@@ -97,10 +97,11 @@ def main():
     parser.add_argument("name", type=str, help="python module name")
     parser.add_argument("part", default="candidate", type=str,
                         help="major/minor/patch or candidate/release")
-    parser.add_argument("-d", "--deps", default=False, action="store_true", help="bump dependencies")
+    parser.add_argument("-r", "--recurse_bump", default=True, action="store_true",
+                        help="recurse bump dependencies")
 
     args = parser.parse_args()
-    name, part, bump_deps = args.name, args.part, args.deps
+    name, part, bump_deps = args.name, args.part, args.recurse_bump
     release_tool(name, part, bump_deps)
 
 

@@ -35,3 +35,5 @@ reflector-cluster:
   remote: lbryio
   depends on:
     - lbrynet
+    - lbryum
+    - lbryschema

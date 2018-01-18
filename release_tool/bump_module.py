@@ -426,7 +426,7 @@ def get_update_ops(name, part, bump_deps=False):
         is_release = False
     elif part in ['major', 'minor', 'patch']:
         bump = {part: True}
-        is_release = True
+        is_release = repo.current_version.is_release
     else:
         raise Exception("Invalid part to bump")
 
